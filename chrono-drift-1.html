@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CHRONO-DRIFT // Relativistic Deficit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void: #0a0f0f;
+    --panel: #101817;
+    --panel2: #0d1414;
+    --line: #1f3230;
+    --cyan: #5fe6d0;
+    --cyan-dim: #2c5a52;
+    --amber: #e8a34f;
+    --red: #ff4d5e;
+    --text: #d8e6e4;
+    --dim: #5a7573;
+    --faint: #33453f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background:var(--void);
+    color:var(--text);
+    font-family:'JetBrains Mono', monospace;
+    height:100%;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  body{
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(95,230,208,0.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+  .wrap{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:18px 16px 28px;
+  }
+
+  /* ---- header ---- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-bottom:1px solid var(--line);
+    padding-bottom:10px;
+    margin-bottom:18px;
+  }
+  .title{
+    font-size:14px;
+    font-weight:800;
+    letter-spacing:3px;
+    color:var(--cyan);
+  }
+  .title span{color:var(--dim); font-weight:500;}
+  .status{
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--dim);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--faint);
+    box-shadow:none;
+  }
+  .dot.live{
+    background:var(--cyan);
+    box-shadow:0 0 6px 1px var(--cyan);
+    animation:blink 1.4s ease-in-out infinite;
+  }
+  .dot.err{background:var(--red); box-shadow:0 0 6px 1px var(--red);}
+  @keyframes blink{0%,100%{opacity:1;} 50%{opacity:.35;}}
+
+  /* ---- reticle / main counter ---- */
+  .reticle-zone{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px 0 8px;
+  }
+  .ring{
+    position:absolute;
+    border-radius:50%;
+    border:1px solid var(--faint);
+  }
+  .ring.r1{width:280px; height:280px;}
+  .ring.r2{width:230px; height:230px; border-color:var(--line);}
+  .ring.pulse{
+    width:280px; height:280px;
+    border:1px solid var(--cyan-dim);
+    animation:pulseRing 2.4s linear infinite;
+  }
+  @keyframes pulseRing{
+    0%{transform:scale(0.72); opacity:0;}
+    15%{opacity:.9;}
+    100%{transform:scale(1); opacity:0;}
+  }
+  .tick{
+    position:absolute;
+    width:280px; height:280px;
+  }
+  .tick i{
+    position:absolute;
+    width:1px; height:8px;
+    background:var(--faint);
+    left:50%; top:0;
+    transform-origin:50% 140px;
+  }
+
+  .core{
+    position:relative;
+    width:210px; height:210px;
+    border-radius:50%;
+    background:radial-gradient(circle at 50% 40%, var(--panel2), var(--void) 75%);
+    border:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+  }
+  .core-label{
+    font-size:9px;
+    letter-spacing:2px;
+    color:var(--dim);
+    margin-bottom:6px;
+  }
+  .deficit-value{
+    font-size:30px;
+    font-weight:700;
+    color:var(--cyan);
+    line-height:1.1;
+    letter-spacing:0.5px;
+    text-shadow:0 0 14px rgba(95,230,208,0.35);
+  }
+  .deficit-unit{
+    font-size:11px;
+    color:var(--amber);
+    letter-spacing:2px;
+    margin-top:4px;
+  }
+  .deficit-sub{
+    font-size:9px;
+    color:var(--dim);
+    margin-top:10px;
+    letter-spacing:0.5px;
+  }
+
+  /* ---- stat grid ---- */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin-top:22px;
+  }
+  .stat{
+    background:var(--panel);
+    padding:12px 14px;
+  }
+  .stat-label{
+    font-size:9px;
+    letter-spacing:1.5px;
+    color:var(--dim);
+    margin-bottom:6px;
+  }
+  .stat-value{
+    font-size:17px;
+    font-weight:700;
+    color:var(--text);
+  }
+  .stat-value small{
+    font-size:10px;
+    font-weight:500;
+    color:var(--dim);
+    letter-spacing:0.5px;
+  }
+  .stat-value.hi{color:var(--amber);}
+
+  /* ---- controls ---- */
+  .controls{
+    display:flex;
+    gap:10px;
+    margin-top:22px;
+  }
+  button{
+    flex:1;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:1.5px;
+    padding:14px 10px;
+    background:var(--panel);
+    color:var(--cyan);
+    border:1px solid var(--cyan-dim);
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  button:active{transform:scale(0.98);}
+  button.stop{color:var(--red); border-color:#5a2a30;}
+  button.reset{color:var(--dim); border-color:var(--line);}
+  button:disabled{opacity:.35; cursor:default;}
+
+  .msg{
+    margin-top:14px;
+    font-size:10.5px;
+    color:var(--dim);
+    line-height:1.6;
+    padding:10px 12px;
+    border-left:2px solid var(--cyan-dim);
+    background:var(--panel);
+    display:none;
+  }
+  .msg.show{display:block;}
+  .msg.err{border-left-color:var(--red); color:#c98a90;}
+
+  /* ---- footer / formula ---- */
+  footer{
+    margin-top:26px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    font-size:9.5px;
+    color:var(--dim);
+    line-height:1.7;
+    letter-spacing:0.2px;
+  }
+  footer .eq{
+    color:var(--cyan-dim);
+    font-size:11px;
+    display:block;
+    margin-bottom:8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title">CHRONO-DRIFT <span>v1.0</span></div>
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="statusText">STANDBY</span>
+    </div>
+  </header>
+
+  <div class="reticle-zone">
+    <div class="ring pulse" id="pulseRing"></div>
+    <div class="ring r1"></div>
+    <div class="ring r2"></div>
+    <div class="core">
+      <div class="core-label">TIME DEFICIT ACCRUED</div>
+      <div class="deficit-value" id="deficitValue">0.000</div>
+      <div class="deficit-unit" id="deficitUnit">FEMTOSECONDS</div>
+      <div class="deficit-sub" id="deficitSub">you are this much younger than a stationary observer</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="stat">
+      <div class="stat-label">CURRENT SPEED</div>
+      <div class="stat-value" id="speedVal">0.00 <small>m/s</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">CURRENT SPEED</div>
+      <div class="stat-value" id="speedValKmh">0.0 <small>km/h</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">v / c</div>
+      <div class="stat-value hi" id="vOverC">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">PEAK SPEED</div>
+      <div class="stat-value" id="peakSpeed">0.00 <small>m/s</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">DISTANCE</div>
+      <div class="stat-value" id="distVal">0 <small>m</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">SESSION TIME</div>
+      <div class="stat-value" id="elapsedVal">00:00:00</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">START TRACKING</button>
+    <button id="stopBtn" class="stop" disabled>STOP</button>
+    <button id="resetBtn" class="reset">RESET</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+
+  <footer>
+    <span class="eq">Δt ≈ v² / (2c²) · dt&nbsp;&nbsp;&nbsp;(low-speed approximation of √(1−v²/c²))</span>
+    Speed is read from your device's GPS chip (position.coords.speed), or estimated from consecutive GPS fixes when the chip doesn't report it directly. The deficit is integrated continuously and is exact to within GPS speed accuracy (~0.1–1 m/s typically). At everyday speeds this is a real, physical — if comically small — effect: you are genuinely, provably younger than someone who stayed still.
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  const C = 299792458; // m/s
+  let watchId = null;
+  let tracking = false;
+
+  let deficitSeconds = 0;      // authoritative accumulated deficit
+  let distanceMeters = 0;
+  let elapsedSeconds = 0;
+  let peakSpeed = 0;
+
+  let lastFixWallMs = null;    // wall clock ms of last GPS fix
+  let lastFixSpeed = 0;        // m/s at last fix
+  let lastCoords = null;
+
+  const el = {
+    dot: document.getElementById('dot'),
+    statusText: document.getElementById('statusText'),
+    deficitValue: document.getElementById('deficitValue'),
+    deficitUnit: document.getElementById('deficitUnit'),
+    speedVal: document.getElementById('speedVal'),
+    speedValKmh: document.getElementById('speedValKmh'),
+    vOverC: document.getElementById('vOverC'),
+    peakSpeed: document.getElementById('peakSpeed'),
+    distVal: document.getElementById('distVal'),
+    elapsedVal: document.getElementById('elapsedVal'),
+    startBtn: document.getElementById('startBtn'),
+    stopBtn: document.getElementById('stopBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    msg: document.getElementById('msg'),
+    pulseRing: document.getElementById('pulseRing'),
+  };
+
+  function showMsg(text, isErr){
+    el.msg.textContent = text;
+    el.msg.className = 'msg show' + (isErr ? ' err' : '');
+  }
+  function hideMsg(){ el.msg.className = 'msg'; }
+
+  function haversine(a, b){
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(b.latitude - a.latitude);
+    const dLon = toRad(b.longitude - a.longitude);
+    const lat1 = toRad(a.latitude), lat2 = toRad(b.latitude);
+    const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function formatFs(fs){
+    // fs = value in femtoseconds
+    if (fs < 100000) return { val: fs.toFixed(3), unit: 'FEMTOSECONDS' };
+    const ps = fs / 1000;
+    if (ps < 100000) return { val: ps.toFixed(3), unit: 'PICOSECONDS' };
+    const ns = ps / 1000;
+    if (ns < 100000) return { val: ns.toFixed(3), unit: 'NANOSECONDS' };
+    const us = ns / 1000;
+    return { val: us.toFixed(3), unit: 'MICROSECONDS' };
+  }
+
+  function formatElapsed(s){
+    const h = Math.floor(s/3600).toString().padStart(2,'0');
+    const m = Math.floor((s%3600)/60).toString().padStart(2,'0');
+    const sec = Math.floor(s%60).toString().padStart(2,'0');
+    return `${h}:${m}:${sec}`;
+  }
+
+  function render(displaySpeed, extraDeficitSeconds){
+    const totalDeficitFs = (deficitSeconds + (extraDeficitSeconds||0)) * 1e15;
+    const { val, unit } = formatFs(totalDeficitFs);
+    el.deficitValue.textContent = val;
+    el.deficitUnit.textContent = unit;
+
+    el.speedVal.innerHTML = `${displaySpeed.toFixed(2)} <small>m/s</small>`;
+    el.speedValKmh.innerHTML = `${(displaySpeed*3.6).toFixed(1)} <small>km/h</small>`;
+    el.vOverC.textContent = (displaySpeed / C).toExponential(2);
+    el.peakSpeed.innerHTML = `${peakSpeed.toFixed(2)} <small>m/s</small>`;
+    el.distVal.innerHTML = `${distanceMeters < 1000 ? distanceMeters.toFixed(0)+' <small>m</small>' : (distanceMeters/1000).toFixed(2)+' <small>km</small>'}`;
+    el.elapsedVal.textContent = formatElapsed(elapsedSeconds + (extraDeficitSeconds ? (Date.now()-lastFixWallMs)/1000 : 0));
+
+    // pulse speed scales with current speed (capped)
+    const pulseSpeed = Math.max(0.6, 2.6 - Math.min(displaySpeed, 30)/30*2.0);
+    el.pulseRing.style.animationDuration = pulseSpeed.toFixed(2) + 's';
+  }
+
+  function onFix(pos){
+    hideMsg();
+    const now = pos.timestamp;
+    const coords = pos.coords;
+
+    let speed = (typeof coords.speed === 'number' && coords.speed >= 0) ? coords.speed : null;
+
+    if (speed === null && lastCoords && lastFixWallMs){
+      const dtEst = (now - lastFixWallMs) / 1000;
+      if (dtEst > 0){
+        const d = haversine(lastCoords, coords);
+        speed = d / dtEst;
+      } else {
+        speed = lastFixSpeed;
+      }
+    }
+    if (speed === null) speed = 0;
+
+    if (lastFixWallMs !== null){
+      const dt = (now - lastFixWallMs) / 1000;
+      if (dt > 0 && dt < 60){
+        const avgV = (speed + lastFixSpeed) / 2;
+        deficitSeconds += (avgV * avgV) / (2 * C * C) * dt;
+        distanceMeters += avgV * dt;
+        elapsedSeconds += dt;
+        if (avgV > peakSpeed) peakSpeed = avgV;
+      }
+    }
+
+    lastFixWallMs = now;
+    lastFixSpeed = speed;
+    lastCoords = coords;
+
+    el.dot.className = 'dot live';
+    el.statusText.textContent = 'GPS LOCK';
+
+    render(speed, 0);
+  }
+
+  function onError(err){
+    el.dot.className = 'dot err';
+    el.statusText.textContent = 'SIGNAL ERROR';
+    let text = 'GPS error: ' + err.message;
+    if (err.code === 1) text = 'Location permission denied. Enable location access for this page to track real speed.';
+    if (err.code === 2) text = 'Position unavailable. Try moving somewhere with a clearer sky view.';
+    if (err.code === 3) text = 'GPS fix timed out. Waiting for signal...';
+    showMsg(text, true);
+  }
+
+  let animFrame = null;
+  function animLoop(){
+    if (!tracking) return;
+    if (lastFixWallMs !== null){
+      const sinceMs = Date.now() - lastFixWallMs;
+      // only extrapolate up to 3s past the last real fix, using last known speed
+      const capped = Math.min(sinceMs, 3000) / 1000;
+      const extra = (lastFixSpeed * lastFixSpeed) / (2 * C * C) * capped;
+      render(lastFixSpeed, extra);
+    }
+    animFrame = requestAnimationFrame(animLoop);
+  }
+
+  function start(){
+    if (!('geolocation' in navigator)){
+      showMsg('This browser does not expose the Geolocation API.', true);
+      return;
+    }
+    tracking = true;
+    el.startBtn.disabled = true;
+    el.stopBtn.disabled = false;
+    el.dot.className = 'dot live';
+    el.statusText.textContent = 'ACQUIRING...';
+    showMsg('Requesting location permission — GPS speed accuracy is typically ±0.1–1 m/s.', false);
+
+    watchId = navigator.geolocation.watchPosition(onFix, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    });
+    animLoop();
+  }
+
+  function stop(){
+    tracking = false;
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    if (animFrame) cancelAnimationFrame(animFrame);
+    watchId = null;
+    el.startBtn.disabled = false;
+    el.stopBtn.disabled = true;
+    el.dot.className = 'dot';
+    el.statusText.textContent = 'PAUSED';
+  }
+
+  function reset(){
+    deficitSeconds = 0;
+    distanceMeters = 0;
+    elapsedSeconds = 0;
+    peakSpeed = 0;
+    lastFixWallMs = null;
+    lastFixSpeed = 0;
+    lastCoords = null;
+    render(0, 0);
+    hideMsg();
+  }
+
+  el.startBtn.addEventListener('click', start);
+  el.stopBtn.addEventListener('click', stop);
+  el.resetBtn.addEventListener('click', reset);
+
+  render(0, 0);
+})();
+</script>
+</body>
+</html>
